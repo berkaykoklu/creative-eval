@@ -38,11 +38,12 @@ def test_a_flat_cta_area_is_clear_and_a_noisy_one_is_not() -> None:
 
     # approx, not ==: 200/255 has no exact float32 form, so a perfectly flat
     # image lands a rounding error short of 1.0.
-    # The claim worth pinning is the ordering and the size of the gap, not an
-    # absolute figure: BUSY_SCALE in score.py is a calibration constant, and a
-    # test asserting a value it produces would just re-state the constant.
+    # Direction and a floor on the separation, not an exact figure: the size of
+    # the gap moves with BUSY_SCALE, so pinning it would only re-state the
+    # constant and this test would fail every time the metric is recalibrated
+    # -- which is the one moment it most needs to still be meaningful.
     assert cta_clarity(flat) == pytest.approx(1.0)
-    assert cta_clarity(flat) - cta_clarity(noisy) > 0.5
+    assert cta_clarity(noisy) < cta_clarity(flat) - 0.3
 
 
 def test_only_the_bottom_centre_counts() -> None:

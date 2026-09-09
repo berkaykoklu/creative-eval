@@ -15,11 +15,17 @@ from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
 CLIP = "openai/clip-vit-base-patch32"
-COLOR_TOLERANCE = 60.0  # ponytail: RGB distance, not perceptual. LAB if it misjudges.
+# RGB distance below which a pixel counts as on-brand. At 60, 18 of 60 images
+# scored zero and could not be ranked against each other; at 120 nearly half
+# of every image counted, which is not credible. See calibrate.py.
+# ponytail: RGB distance, not perceptual. LAB if it starts misjudging hues.
+COLOR_TOLERANCE = 90.0
 CTA_BOX = (0.25, 0.75, 0.75, 1.0)  # left, top, right, bottom as fractions
-# Maps luminance spread onto 0-1. Calibrated against the real output in
-# calibrate.py, not derived: pick it badly and every image scores the same.
-BUSY_SCALE = 4.0
+# Maps luminance spread onto 0-1. Luminance standard deviation tops out near
+# 0.5 (half black, half white), so 2.0 spans the real range without the clamp
+# ever firing. At 4.0 it fired on 21 of 60 images, tying a third of the set
+# at zero. See calibrate.py.
+BUSY_SCALE = 2.0
 
 
 def brand_colour_coverage(image: Image.Image, palette: list[list[int]]) -> float:

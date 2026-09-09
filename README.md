@@ -51,6 +51,33 @@ reused for the duplicate check, so the second metric costs nothing.
 would make the correlation measure how suggestible the rater was rather than
 whether the metric works.
 
+## Calibration happened before the ratings existed
+
+Two constants set a threshold — `COLOR_TOLERANCE` and `BUSY_SCALE` — and a
+threshold can kill a metric silently. The first pass used values that clamped
+**21 of 60** images to an identical CTA score and left **18** at zero for brand
+colour: a third of the set tied, with no ordering left to correlate against
+anything.
+
+`calibrate.py` prints the distribution each candidate value produces, and the
+constants were chosen from it — not by preference, and **not by whether the
+resulting correlation looked good**, because it was run before `ratings.json`
+existed. That ordering is the difference between calibrating an instrument and
+manufacturing a result.
+
+| Metric | min | median | max |
+|---|---|---|---|
+| CLIP adherence | 0.274 | 0.316 | 0.364 |
+| Brand colour | 0.001 | 0.092 | 0.450 |
+| CTA clarity | 0.276 | 0.567 | 0.689 |
+| Nearest other | 0.798 | 0.885 | 0.943 |
+
+Every image is now rankable on every metric.
+
+**One result is already visible here:** the nearest-neighbour column never drops
+below 0.798. No creative in the set is far from every other one — sixty renders
+from one brief are not sixty ideas.
+
 ## Honest limits
 
 - **One rater, one brief, one model.** This measures whether *these* metrics
@@ -58,6 +85,10 @@ whether the metric works.
   inter-rater agreement figure this cannot.
 - **`BUSY_SCALE` is calibrated, not derived.** It maps luminance spread onto
   0-1. A test proves flat beats noisy; the absolute value carries no meaning.
+- **The palette was never put in the prompt.** So brand colour measures
+  whether the palette turned up by chance, not whether the model followed an
+  instruction. Injecting it into the brief would make this a
+  did-it-comply metric, which is the more useful question.
 - **RGB distance is not perceptual.** Two colours the same distance apart in RGB
   can look very different. LAB would be correct; this is not, and says so.
 - Ratings are ordinal, so agreement is reported as Spearman ρ — rank agreement,
@@ -69,6 +100,7 @@ whether the metric works.
 uv sync
 uv run python generate.py   # ~10 min on an M-series Mac, once
 uv run python score.py
+uv run python calibrate.py   # evidence for the two thresholds
 uv run python rate.py       # you, 60 images, ~10 min
 uv run python analyze.py
 uv run pytest
