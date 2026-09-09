@@ -1,4 +1,4 @@
-"""Brief -> prompts -> images. Runs once, offline; the PNGs are committed.
+"""Brief -> prompts -> images. Runs once, offline; the images are committed.
 
 The site never runs this. Generation is slow and the result is what matters,
 so it happens deliberately here and the output is checked in -- which also

@@ -58,8 +58,8 @@ def clarity(image: Image.Image, box: tuple[float, float, float, float]) -> float
     grey = np.asarray(image.convert("L"), dtype=np.float32) / 255.0
     h, w = grey.shape
     left, top, right, bottom = box
-    box = grey[int(top * h) : int(bottom * h), int(left * w) : int(right * w)]
-    return float(max(0.0, 1.0 - box.std() * BUSY_SCALE))
+    region = grey[int(top * h) : int(bottom * h), int(left * w) : int(right * w)]
+    return float(max(0.0, 1.0 - region.std() * BUSY_SCALE))
 
 
 def main() -> None:
