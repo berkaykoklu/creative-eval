@@ -21,6 +21,11 @@ CLIP = "openai/clip-vit-base-patch32"
 # ponytail: RGB distance, not perceptual. LAB if it starts misjudging hues.
 COLOR_TOLERANCE = 90.0
 CTA_BOX = (0.25, 0.75, 0.75, 1.0)  # left, top, right, bottom as fractions
+# Same shape and size, at the top instead. A control: if flatness *here*
+# predicts a human rating as well as flatness in the CTA box does, then the
+# CTA metric is detecting a generally chaotic image and the mobile-ad framing
+# is a story told after the fact.
+CONTROL_BOX = (0.25, 0.0, 0.75, 0.25)
 # Maps luminance spread onto 0-1. Luminance standard deviation tops out near
 # 0.5 (half black, half white), so 2.0 spans the real range without the clamp
 # ever firing. At 4.0 it fired on 21 of 60 images, tying a third of the set
@@ -41,16 +46,18 @@ def brand_colour_coverage(image: Image.Image, palette: list[list[int]]) -> float
     return float((distances.min(axis=0) < COLOR_TOLERANCE).mean())
 
 
-def cta_clarity(image: Image.Image) -> float:
-    """How clean the bottom-centre is, 0-1. Higher is better.
+def clarity(image: Image.Image, box: tuple[float, float, float, float]) -> float:
+    """How flat a region is, 0-1. Higher is cleaner.
 
-    Mobile ad creatives put the install button here, so a busy strip makes an
-    image unusable no matter how good it looks. Busy-ness is the standard
-    deviation of luminance inside the box, rescaled so 0 is chaos and 1 is flat.
+    Busy-ness is the standard deviation of luminance inside the box, rescaled
+    so 0 is chaos and 1 is flat. Taking a region rather than the whole image is
+    the entire point: mobile ad creatives put the install button in the bottom
+    centre, so a busy strip *there* makes a creative unusable however good the
+    rest of it looks.
     """
     grey = np.asarray(image.convert("L"), dtype=np.float32) / 255.0
     h, w = grey.shape
-    left, top, right, bottom = CTA_BOX
+    left, top, right, bottom = box
     box = grey[int(top * h) : int(bottom * h), int(left * w) : int(right * w)]
     return float(max(0.0, 1.0 - box.std() * BUSY_SCALE))
 
@@ -90,7 +97,8 @@ def main() -> None:
             **row,
             "adherence": round(float(adherence[i]), 4),
             "brand_colour": round(brand_colour_coverage(images[i], brief["brand_colors"]), 4),
-            "cta_clarity": round(cta_clarity(images[i]), 4),
+            "cta_clarity": round(clarity(images[i], CTA_BOX), 4),
+            "control_clarity": round(clarity(images[i], CONTROL_BOX), 4),
             "nearest_other": round(float(nearest[i]), 4),
         }
         for i, row in enumerate(index)

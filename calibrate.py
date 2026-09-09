@@ -30,7 +30,7 @@ def main() -> None:
     print("BUSY_SCALE — a clamped image carries no rank")
     for scale in BUSY_SCALES:
         score.BUSY_SCALE = scale
-        values = np.array([score.cta_clarity(image) for image in images])
+        values = np.array([score.clarity(image, score.CTA_BOX) for image in images])
         print(
             f"  {scale:>4}: {(values == 0).sum():2d}/{len(values)} clamped to zero, "
             f"range {values.min():.2f}-{values.max():.2f}"

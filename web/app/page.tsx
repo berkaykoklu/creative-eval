@@ -3,12 +3,15 @@ import raw from "../public/results.json";
 /** Mirrors what analyze.py writes. The only place the frontend restates
  *  something Python already knows, and it is shape only -- every number here
  *  was computed and rounded on the Python side. */
+type Metric = { metric: string; spearman: number; top_n_mean_rating: number };
+
 type Results = {
   n_images: number;
   n_rated: number;
   top_n: number;
   mean_rating: number;
-  metrics: { metric: string; spearman: number; top_n_mean_rating: number }[];
+  metrics: Metric[];
+  control: Metric;
   images: {
     file: string;
     text: string;
@@ -18,6 +21,7 @@ type Results = {
     adherence: number;
     brand_colour: number;
     cta_clarity: number;
+    control_clarity: number;
     nearest_other: number;
     rating: number | null;
   }[];
@@ -30,6 +34,7 @@ const LABELS: Record<string, string> = {
   brand_colour: "Brand colour",
   cta_clarity: "CTA clarity",
   nearest_other: "Distinctiveness",
+  control_clarity: "Top-strip flatness (control)",
 };
 
 const EXPLAINS: Record<string, string> = {
@@ -37,12 +42,14 @@ const EXPLAINS: Record<string, string> = {
   brand_colour: "Share of pixels within a fixed RGB distance of the brand palette. Plain arithmetic, no model.",
   cta_clarity: "How flat the bottom-centre strip is. Mobile ads put the install button there, so a busy strip makes a creative unusable however good it looks.",
   nearest_other: "Inverted nearest-neighbour similarity across all 60 images. Sixty renders are not sixty ideas; this says how many are actually distinct.",
+  control_clarity: "The same arithmetic as CTA clarity, run on the top strip instead — a region with no install button and no story attached. It exists to test whether the CTA metric measures what it claims.",
 };
 
 /** Bar chart, hand-drawn in SVG.
  *  A chart library would be one more dependency and one more thing whose
  *  internals I could not explain; four bars and a baseline is arithmetic. */
-function Chart({ metrics, baseline }: { metrics: Results["metrics"]; baseline: number }) {
+function Chart({ metrics, baseline, control }:
+               { metrics: Metric[]; baseline: number; control: string }) {
   const width = 640, rowHeight = 46, padLeft = 130, padRight = 56, top = 24;
   const height = top + metrics.length * rowHeight + 28;
   const scale = (value: number) => ((width - padLeft - padRight) * value) / 5;
@@ -62,13 +69,16 @@ function Chart({ metrics, baseline }: { metrics: Results["metrics"]; baseline: n
       {metrics.map((row, i) => {
         const y = top + i * rowHeight;
         const beatsBaseline = row.top_n_mean_rating > baseline;
+        const isControl = row.metric === control;
         return (
           <g key={row.metric}>
             <text x={padLeft - 10} y={y + 15} fontSize="12" fill="var(--text)" textAnchor="end">
               {LABELS[row.metric] ?? row.metric}
             </text>
             <rect x={padLeft} y={y} width={Math.max(scale(row.top_n_mean_rating), 1)} height="20"
-                  rx="2" fill={beatsBaseline ? "var(--good)" : "var(--muted)"} opacity="0.85" />
+                  rx="2" fill={beatsBaseline ? "var(--good)" : "var(--muted)"}
+                  opacity={isControl ? 0.45 : 0.85}
+                  stroke={isControl ? "var(--accent)" : "none"} strokeDasharray="3 2" />
             <text x={padLeft + scale(row.top_n_mean_rating) + 6} y={y + 15} fontSize="11"
                   fill="var(--muted)">{row.top_n_mean_rating.toFixed(2)}</text>
           </g>
@@ -86,7 +96,7 @@ function Chart({ metrics, baseline }: { metrics: Results["metrics"]; baseline: n
 }
 
 export default function Home() {
-  const { metrics, mean_rating, top_n, n_images, n_rated, images } = results;
+  const { metrics, control, mean_rating, top_n, n_images, n_rated, images } = results;
   const best = metrics[0];
   const lift = best ? best.top_n_mean_rating - mean_rating : 0;
   const ranked = [...images].sort((a, b) => b.adherence - a.adherence);
@@ -103,13 +113,26 @@ export default function Home() {
 
       {best && (
         <div className="finding">
-          <p style={{ margin: 0 }}>
-            <strong>Finding.</strong> Ranking by <b>{LABELS[best.metric] ?? best.metric}</b> and
-            taking the top {top_n} yields a mean human rating of{" "}
+          <p>
+            <strong>Finding.</strong> The best of the four is{" "}
+            <b>{LABELS[best.metric] ?? best.metric}</b> at ρ ={" "}
+            <b>{best.spearman.toFixed(2)}</b>: its top {top_n} average{" "}
             <b>{best.top_n_mean_rating.toFixed(2)}</b> against{" "}
-            <b>{mean_rating.toFixed(2)}</b> for the unfiltered set — a lift of{" "}
-            <b>{lift >= 0 ? "+" : ""}{lift.toFixed(2)}</b>. Rank correlation with
-            my ratings is <b>{best.spearman.toFixed(2)}</b>.
+            <b>{mean_rating.toFixed(2)}</b> unfiltered, a lift of{" "}
+            <b>{lift >= 0 ? "+" : ""}{lift.toFixed(2)}</b>. It is five lines of
+            arithmetic over pixels, and it beat the 600&nbsp;MB CLIP model.
+          </p>
+          <p style={{ margin: 0 }}>
+            <strong>And then the control beat them both.</strong> CTA clarity
+            came with a tidy story — mobile ads put the install button in the
+            bottom centre, so a busy strip there makes a creative unusable. So I
+            ran the identical arithmetic on the <b>top</b> strip, where there is
+            no button and no story. It scored ρ ={" "}
+            <b>{control.spearman.toFixed(2)}</b>, with a top-{top_n} average of{" "}
+            <b>{control.top_n_mean_rating.toFixed(2)}</b> — better on both. The
+            metric was never detecting ad-placement suitability. It was detecting
+            a visually calm image, and my domain rationale was a story told after
+            the fact.
           </p>
         </div>
       )}
@@ -118,16 +141,19 @@ export default function Home() {
       <p className="note">
         Bars show the mean rating I gave to each metric&rsquo;s top {top_n}. The
         dashed line is the mean over all {n_rated} rated images — the score a
-        metric must beat to be worth running at all.
+        metric must beat to be worth running at all. The outlined bar is the
+        control, not a candidate filter.
       </p>
-      <div className="chart"><Chart metrics={metrics} baseline={mean_rating} /></div>
+      <div className="chart">
+        <Chart metrics={[...metrics, control]} baseline={mean_rating} control={control.metric} />
+      </div>
 
       <table>
         <thead>
           <tr><th>Metric</th><th>Spearman ρ</th><th>Top {top_n} rating</th><th>vs baseline</th></tr>
         </thead>
         <tbody>
-          {metrics.map((row) => {
+          {[...metrics, control].map((row) => {
             const delta = row.top_n_mean_rating - mean_rating;
             return (
               <tr key={row.metric}>
@@ -145,7 +171,7 @@ export default function Home() {
 
       <h2>What each metric measures</h2>
       <dl>
-        {metrics.map((row) => (
+        {[...metrics, control].map((row) => (
           <div key={row.metric} style={{ marginBottom: "0.9rem" }}>
             <dt style={{ fontWeight: 600 }}>{LABELS[row.metric] ?? row.metric}</dt>
             <dd style={{ margin: "0.2rem 0 0", color: "var(--muted)", fontSize: "0.92rem" }}>

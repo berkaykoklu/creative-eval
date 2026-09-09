@@ -11,6 +11,12 @@ from pathlib import Path
 import numpy as np
 
 METRICS = ["adherence", "brand_colour", "cta_clarity", "nearest_other"]
+# Not a candidate. Identical arithmetic to cta_clarity on a region with no
+# button and no story attached, so it answers the question the CTA metric
+# cannot ask about itself: is this measuring ad-placement suitability, or
+# just a calm image? Reported separately because a control that outscores
+# the metric it audits is a result about the metric, not a better filter.
+CONTROL = "control_clarity"
 TOP_N = 10
 
 
@@ -50,29 +56,30 @@ def main() -> None:
     human = np.array([ratings[row["file"]] for row in rated], dtype=float)
     average = float(human.mean())
 
-    summary = []
-    for metric in METRICS:
+    def evaluate(metric: str) -> dict[str, object]:
         values = np.array([row[metric] for row in rated], dtype=float)
         # nearest_other measures duplication, so less is better; flipping it
         # here keeps every row in the table reading "higher should be better".
         directed = -values if metric == "nearest_other" else values
         picked = human[np.argsort(-directed, kind="stable")[:TOP_N]]
-        summary.append(
-            {
-                "metric": metric,
-                "spearman": round(spearman(directed, human), 3),
-                # The practical question behind the correlation: if this metric
-                # picked the shortlist, would a human like the shortlist?
-                "top_n_mean_rating": round(float(picked.mean()), 2),
-            }
-        )
+        return {
+            "metric": metric,
+            "spearman": round(spearman(directed, human), 3),
+            # The practical question behind the correlation: if this metric
+            # picked the shortlist, would a human like the shortlist?
+            "top_n_mean_rating": round(float(picked.mean()), 2),
+        }
+
+    summary = [evaluate(metric) for metric in METRICS]
+    control = evaluate(CONTROL)
 
     results = {
         "n_images": len(scores),
         "n_rated": len(rated),
         "top_n": TOP_N,
         "mean_rating": round(average, 2),
-        "metrics": sorted(summary, key=lambda r: -r["top_n_mean_rating"]),
+        "metrics": sorted(summary, key=lambda r: -float(r["top_n_mean_rating"])),
+        "control": control,
         "images": [{**row, "rating": ratings.get(row["file"])} for row in scores],
     }
     Path("web/public/results.json").write_text(json.dumps(results, indent=2))

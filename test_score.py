@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from score import brand_colour_coverage, cta_clarity
+from score import CTA_BOX, brand_colour_coverage, clarity
 
 ORANGE = [255, 92, 51]
 PALETTE = [ORANGE, [43, 191, 168]]
@@ -42,8 +42,8 @@ def test_a_flat_cta_area_is_clear_and_a_noisy_one_is_not() -> None:
     # the gap moves with BUSY_SCALE, so pinning it would only re-state the
     # constant and this test would fail every time the metric is recalibrated
     # -- which is the one moment it most needs to still be meaningful.
-    assert cta_clarity(flat) == pytest.approx(1.0)
-    assert cta_clarity(noisy) < cta_clarity(flat) - 0.3
+    assert clarity(flat, CTA_BOX) == pytest.approx(1.0)
+    assert clarity(noisy, CTA_BOX) < clarity(flat, CTA_BOX) - 0.3
 
 
 def test_only_the_bottom_centre_counts() -> None:
@@ -55,4 +55,4 @@ def test_only_the_bottom_centre_counts() -> None:
     noise = Image.fromarray(rng.integers(0, 255, (128, 256, 3), dtype=np.uint8))
     image.paste(noise, (0, 0))
 
-    assert cta_clarity(image) == pytest.approx(1.0)
+    assert clarity(image, CTA_BOX) == pytest.approx(1.0)

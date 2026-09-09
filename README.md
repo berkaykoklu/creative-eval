@@ -7,6 +7,37 @@ is left** — and it is the one a studio actually pays for.
 This measures whether automatic quality scores agree with human judgement, and
 reports the answer even when the answer is unflattering.
 
+## The result
+
+| Metric | Spearman ρ | Top-10 mean rating |
+|---|---|---|
+| CTA clarity | 0.59 | 2.70 |
+| CLIP adherence | 0.22 | 2.60 |
+| Brand colour | −0.05 | 2.00 |
+| Distinctiveness | −0.35 | 1.70 |
+| *Top-strip flatness (control)* | *0.69* | *3.30* |
+
+Unfiltered mean over all 60: **2.23**.
+
+Three things fell out of this, and the third is the one worth reading.
+
+**Five lines of arithmetic beat a 600 MB model.** CTA clarity is a standard
+deviation over a rectangle of pixels. CLIP adherence is a transformer trained on
+400 million image-text pairs. On this set the arithmetic predicted my judgement
+almost three times better.
+
+**Filtering for distinctiveness actively hurts.** The ten images furthest from
+every other image in CLIP space averaged 1.70 against a baseline of 2.23. An
+outlier in a batch of generations is usually a failure, not an idea.
+
+**The control beat the metric it was auditing — so the metric does not measure
+what I said it measured.** CTA clarity came with a tidy rationale: mobile ads put
+the install button in the bottom centre, so a busy strip there makes a creative
+unusable. Running the identical arithmetic on the *top* strip, where there is no
+button and no story, scored **0.69** against CTA clarity's 0.59. The metric was
+detecting a visually calm image all along. The domain rationale was a story told
+after the fact, and without the control it would have shipped as a finding.
+
 ## The question
 
 If you generate creatives at scale, you cannot look at all of them. So you
@@ -83,6 +114,11 @@ from one brief are not sixty ideas.
 - **One rater, one brief, one model.** This measures whether *these* metrics
   track *my* judgement on *this* campaign. A second rater would give an
   inter-rater agreement figure this cannot.
+- **60 images is small.** At this size a ρ of 0.2 is barely distinguishable
+  from nothing; the ordering of the weak metrics should not be over-read.
+- **Ratings are skewed** — 26 of 60 scored 1. Two-step SD-Turbo produces a lot
+  of unusable output, so much of what the good metrics detect may be the
+  difference between broken and coherent rather than between good and better.
 - **`BUSY_SCALE` is calibrated, not derived.** It maps luminance spread onto
   0-1. A test proves flat beats noisy; the absolute value carries no meaning.
 - **The palette was never put in the prompt.** So brand colour measures
