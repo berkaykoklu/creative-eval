@@ -1,0 +1,41 @@
+:root {
+  --bg: #faf9f7; --panel: #fff; --border: #e4e0d9; --text: #1a1917;
+  --muted: #6b665e; --accent: #b4442a; --good: #2f7d5c; --grid: #efece6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131210; --panel: #1c1a17; --border: #302c27; --text: #eae6df;
+    --muted: #99938a; --accent: #e08159; --good: #6cc39a; --grid: #262320;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  line-height: 1.6; -webkit-font-smoothing: antialiased;
+}
+main { max-width: 880px; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+h1 { font-size: 2rem; line-height: 1.15; margin: 0 0 .5rem; letter-spacing: -.02em; }
+h2 { font-size: 1.15rem; margin: 3rem 0 .5rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
+p { margin: 0 0 1rem; }
+.lede { color: var(--muted); font-size: 1.05rem; margin-bottom: 2rem; }
+.finding {
+  background: var(--panel); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent); border-radius: 4px;
+  padding: 1.1rem 1.3rem; margin: 1.5rem 0;
+}
+.finding strong { color: var(--accent); }
+table { width: 100%; border-collapse: collapse; font-size: .92rem; margin-bottom: 1rem; }
+th, td { text-align: right; padding: .5rem .6rem; border-bottom: 1px solid var(--border); }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+td.num { font-variant-numeric: tabular-nums; }
+.win { color: var(--good); font-weight: 600; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .75rem; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+.card img { width: 100%; display: block; aspect-ratio: 1; object-fit: cover; }
+.card .meta { padding: .45rem .55rem; font-size: .7rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.card .meta b { color: var(--text); }
+.note { color: var(--muted); font-size: .9rem; }
+.chart { overflow-x: auto; }
+code { font-family: ui-monospace, Menlo, monospace; font-size: .85em; background: var(--grid); padding: .1em .35em; border-radius: 3px; }

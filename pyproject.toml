@@ -1,0 +1,25 @@
+[project]
+name = "creative-eval"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "diffusers>=0.40.0",
+    "numpy>=2.5.3",
+    "pillow>=12.3.0",
+    "torch>=2.14.0",
+    "transformers>=5.16.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.6",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
