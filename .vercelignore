@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Offline tooling. Generation, scoring and rating all run on a laptop and
+# their output is committed; none of it is reachable from the deployed site.
+*.py
+uv.lock
