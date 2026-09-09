@@ -1,208 +1,257 @@
 import raw from "../public/results.json";
-
-/** Mirrors what analyze.py writes. The only place the frontend restates
- *  something Python already knows, and it is shape only -- every number here
- *  was computed and rounded on the Python side. */
-type Metric = { metric: string; spearman: number; top_n_mean_rating: number };
-
-type Results = {
-  n_images: number;
-  n_rated: number;
-  top_n: number;
-  mean_rating: number;
-  metrics: Metric[];
-  control: Metric;
-  images: {
-    file: string;
-    text: string;
-    subject: string;
-    style: string;
-    seed: number;
-    adherence: number;
-    brand_colour: number;
-    cta_clarity: number;
-    control_clarity: number;
-    nearest_other: number;
-    rating: number | null;
-  }[];
-};
+import Explorer from "./explorer";
+import { CONFIGS, type Results } from "@/lib/metrics";
 
 const results = raw as Results;
 
-const LABELS: Record<string, string> = {
-  adherence: "CLIP adherence",
-  brand_colour: "Brand colour",
-  cta_clarity: "CTA clarity",
-  nearest_other: "Distinctiveness",
-  control_clarity: "Top-strip flatness (control)",
-};
-
-const EXPLAINS: Record<string, string> = {
-  adherence: "Cosine similarity between the image and its own prompt in CLIP's shared embedding space. Catches an image that is attractive but off-brief.",
-  brand_colour: "Share of pixels within a fixed RGB distance of the brand palette. Plain arithmetic, no model.",
-  cta_clarity: "How flat the bottom-centre strip is. Mobile ads put the install button there, so a busy strip makes a creative unusable however good it looks.",
-  nearest_other: "Inverted nearest-neighbour similarity across all 60 images. Sixty renders are not sixty ideas; this says how many are actually distinct.",
-  control_clarity: "The same arithmetic as CTA clarity, run on the top strip instead — a region with no install button and no story attached. It exists to test whether the CTA metric measures what it claims.",
-};
-
-/** Bar chart, hand-drawn in SVG.
- *  A chart library would be one more dependency and one more thing whose
- *  internals I could not explain; four bars and a baseline is arithmetic. */
-function Chart({ metrics, baseline, control }:
-               { metrics: Metric[]; baseline: number; control: string }) {
-  const width = 640, rowHeight = 46, padLeft = 130, padRight = 56, top = 24;
-  const height = top + metrics.length * rowHeight + 28;
-  const scale = (value: number) => ((width - padLeft - padRight) * value) / 5;
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} width="100%" role="img"
-         aria-label="Mean human rating of each metric's top ten selection">
-      {[1, 2, 3, 4, 5].map((tick) => (
-        <g key={tick}>
-          <line x1={padLeft + scale(tick)} x2={padLeft + scale(tick)} y1={top - 8}
-                y2={height - 28} stroke="var(--grid)" />
-          <text x={padLeft + scale(tick)} y={height - 12} fontSize="10"
-                fill="var(--muted)" textAnchor="middle">{tick}</text>
-        </g>
-      ))}
-
-      {metrics.map((row, i) => {
-        const y = top + i * rowHeight;
-        const beatsBaseline = row.top_n_mean_rating > baseline;
-        const isControl = row.metric === control;
-        return (
-          <g key={row.metric}>
-            <text x={padLeft - 10} y={y + 15} fontSize="12" fill="var(--text)" textAnchor="end">
-              {LABELS[row.metric] ?? row.metric}
-            </text>
-            <rect x={padLeft} y={y} width={Math.max(scale(row.top_n_mean_rating), 1)} height="20"
-                  rx="2" fill={beatsBaseline ? "var(--good)" : "var(--muted)"}
-                  opacity={isControl ? 0.45 : 0.85}
-                  stroke={isControl ? "var(--accent)" : "none"} strokeDasharray="3 2" />
-            <text x={padLeft + scale(row.top_n_mean_rating) + 6} y={y + 15} fontSize="11"
-                  fill="var(--muted)">{row.top_n_mean_rating.toFixed(2)}</text>
-          </g>
-        );
-      })}
-
-      {/* Everything is read against this line: a metric that cannot beat the
-          average of all sixty images is not selecting anything. */}
-      <line x1={padLeft + scale(baseline)} x2={padLeft + scale(baseline)} y1={top - 8}
-            y2={height - 28} stroke="var(--accent)" strokeWidth="1.5" strokeDasharray="4 3" />
-      <text x={padLeft + scale(baseline)} y={top - 12} fontSize="10" fill="var(--accent)"
-            textAnchor="middle">no-filter average {baseline.toFixed(2)}</text>
-    </svg>
-  );
-}
+const LABEL: Record<string, string> = Object.fromEntries(
+  CONFIGS.map((c) => [c.key, c.label]),
+);
 
 export default function Home() {
-  const { metrics, control, mean_rating, top_n, n_images, n_rated, images } = results;
+  const { metrics, control, mean_rating, top_n, n_images } = results;
   const best = metrics[0];
-  const lift = best ? best.top_n_mean_rating - mean_rating : 0;
-  const ranked = [...images].sort((a, b) => b.adherence - a.adherence);
 
   return (
     <>
-      <h1>Which AI-generated ad creatives are actually any good?</h1>
-      <p className="lede">
-        Generating {n_images} mobile-game ad creatives takes one script and no
-        money. Deciding which ones are worth a media budget is the real problem.
-        I scored all {n_images} automatically, rated them by eye, and measured
-        whether the scores agree with the eye.
+      {/* ── 1. What this is, in one breath ───────────────────────────── */}
+      <p className="eyebrow">Generative AI · Evaluation</p>
+      <h1>Which AI ad creatives are worth a budget?</h1>
+      <p className="deck">
+        A model can generate sixty mobile-game ad creatives in ten minutes for
+        nothing. Deciding which of them deserves real ad spend is the part a
+        studio actually pays for. I built four automatic quality filters, rated
+        every image by eye without seeing the scores, and measured whether the
+        filters agree with the human — then added a control that proved my best
+        filter was measuring the wrong thing.
       </p>
 
-      {best && (
-        <div className="finding">
-          <p>
-            <strong>Finding.</strong> The best of the four is{" "}
-            <b>{LABELS[best.metric] ?? best.metric}</b> at ρ ={" "}
-            <b>{best.spearman.toFixed(2)}</b>: its top {top_n} average{" "}
-            <b>{best.top_n_mean_rating.toFixed(2)}</b> against{" "}
-            <b>{mean_rating.toFixed(2)}</b> unfiltered, a lift of{" "}
-            <b>{lift >= 0 ? "+" : ""}{lift.toFixed(2)}</b>. It is five lines of
-            arithmetic over pixels, and it beat the 600&nbsp;MB CLIP model.
-          </p>
-          <p style={{ margin: 0 }}>
-            <strong>And then the control beat them both.</strong> CTA clarity
-            came with a tidy story — mobile ads put the install button in the
-            bottom centre, so a busy strip there makes a creative unusable. So I
-            ran the identical arithmetic on the <b>top</b> strip, where there is
-            no button and no story. It scored ρ ={" "}
-            <b>{control.spearman.toFixed(2)}</b>, with a top-{top_n} average of{" "}
-            <b>{control.top_n_mean_rating.toFixed(2)}</b> — better on both. The
-            metric was never detecting ad-placement suitability. It was detecting
-            a visually calm image, and my domain rationale was a story told after
-            the fact.
-          </p>
-        </div>
-      )}
-
-      <h2>Does each metric pick what a human picks?</h2>
-      <p className="note">
-        Bars show the mean rating I gave to each metric&rsquo;s top {top_n}. The
-        dashed line is the mean over all {n_rated} rated images — the score a
-        metric must beat to be worth running at all. The outlined bar is the
-        control, not a candidate filter.
+      {/* ── 2. Try it ────────────────────────────────────────────────── */}
+      <h2>Try it</h2>
+      <p>
+        Pick a filter. The creatives re-rank instantly and the readout shows what
+        I actually rated its top {top_n}. Every number is measured, not
+        illustrative.
       </p>
-      <div className="chart">
-        <Chart metrics={[...metrics, control]} baseline={mean_rating} control={control.metric} />
-      </div>
+      <Explorer results={results} />
 
-      <table>
-        <thead>
-          <tr><th>Metric</th><th>Spearman ρ</th><th>Top {top_n} rating</th><th>vs baseline</th></tr>
-        </thead>
-        <tbody>
-          {[...metrics, control].map((row) => {
-            const delta = row.top_n_mean_rating - mean_rating;
-            return (
-              <tr key={row.metric}>
-                <td>{LABELS[row.metric] ?? row.metric}</td>
-                <td className="num">{row.spearman.toFixed(2)}</td>
-                <td className="num">{row.top_n_mean_rating.toFixed(2)}</td>
-                <td className={`num ${delta > 0 ? "win" : ""}`}>
-                  {delta >= 0 ? "+" : ""}{delta.toFixed(2)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      {/* ── 3. What runs behind it ───────────────────────────────────── */}
+      <h2>What runs behind it</h2>
+      <figure>
+        <svg viewBox="0 0 720 232" role="img" aria-label="Generation, scoring and rating all run once on a laptop; their output is committed to the repository, and the deployed page only reads it.">
+          <defs>
+            <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor" />
+            </marker>
+            <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="var(--accent)" />
+            </marker>
+          </defs>
 
-      <h2>What each metric measures</h2>
-      <dl>
-        {[...metrics, control].map((row) => (
-          <div key={row.metric} style={{ marginBottom: "0.9rem" }}>
-            <dt style={{ fontWeight: 600 }}>{LABELS[row.metric] ?? row.metric}</dt>
-            <dd style={{ margin: "0.2rem 0 0", color: "var(--muted)", fontSize: "0.92rem" }}>
-              {EXPLAINS[row.metric]}
-            </dd>
+          <rect x="6" y="28" width="452" height="192" rx="6" fill="var(--sunk)" stroke="var(--rule)" />
+          <text x="18" y="20" fontSize="10.5" fontFamily="IBM Plex Mono, monospace" fill="currentColor" opacity=".65">
+            RUNS ONCE, ON A LAPTOP — no cloud, no API bill
+          </text>
+
+          <rect x="496" y="28" width="218" height="192" rx="6" fill="none" stroke="var(--accent)" strokeDasharray="4 3" />
+          <text x="508" y="20" fontSize="10.5" fontFamily="IBM Plex Mono, monospace" fill="var(--accent)">
+            RUNS ON EVERY VISIT
+          </text>
+
+          <g fontSize="11.5" fontFamily="IBM Plex Sans, sans-serif" textAnchor="middle" fill="currentColor">
+            <rect x="24" y="48" width="104" height="38" rx="4" fill="var(--surface)" stroke="var(--rule)" />
+            <text x="76" y="65">Creative brief</text>
+            <text x="76" y="78" fontSize="9.5" opacity=".62">3 subjects × 4 styles</text>
+
+            <line x1="128" y1="67" x2="160" y2="67" stroke="currentColor" markerEnd="url(#a)" />
+
+            <rect x="162" y="48" width="118" height="38" rx="4" fill="var(--surface)" stroke="var(--rule)" />
+            <text x="221" y="65">Stable Diffusion</text>
+            <text x="221" y="78" fontSize="9.5" opacity=".62">open weights, on-device</text>
+
+            <line x1="280" y1="67" x2="312" y2="67" stroke="currentColor" markerEnd="url(#a)" />
+
+            <rect x="314" y="48" width="126" height="38" rx="4" fill="var(--surface)" stroke="var(--rule)" />
+            <text x="377" y="65">60 creatives</text>
+            <text x="377" y="78" fontSize="9.5" opacity=".62">fixed seeds, reproducible</text>
+
+            <path d="M377 86 L377 100 L221 100 L221 116" fill="none" stroke="currentColor" markerEnd="url(#a)" />
+            <path d="M377 86 L377 100 L76 100 L76 116" fill="none" stroke="currentColor" markerEnd="url(#a)" />
+
+            <rect x="20" y="118" width="112" height="42" rx="4" fill="var(--surface)" stroke="var(--rule)" />
+            <text x="76" y="135">Human rating</text>
+            <text x="76" y="149" fontSize="9.5" opacity=".62">blind to the scores</text>
+
+            <rect x="164" y="118" width="114" height="42" rx="4" fill="var(--surface)" stroke="var(--rule)" />
+            <text x="221" y="135">4 metrics</text>
+            <text x="221" y="149" fontSize="9.5" opacity=".62">CLIP + arithmetic</text>
+
+            <rect x="310" y="118" width="130" height="42" rx="4" fill="var(--surface)" stroke="var(--accent)" />
+            <text x="375" y="135" fill="var(--accent)">Calibration</text>
+            <text x="375" y="149" fontSize="9.5" opacity=".7">before any rating exists</text>
+            <line x1="310" y1="139" x2="282" y2="139" stroke="var(--accent)" markerEnd="url(#b)" />
+
+            <path d="M76 160 L76 176 L221 176 L221 186" fill="none" stroke="currentColor" markerEnd="url(#a)" />
+            <path d="M221 160 L221 186" fill="none" stroke="currentColor" markerEnd="url(#a)" />
+
+            <rect x="152" y="188" width="138" height="24" rx="4" fill="var(--surface)" stroke="var(--rule)" />
+            <text x="221" y="204">Agreement analysis</text>
+
+            <path d="M290 200 L360 200 L360 152 L560 152 L560 128" fill="none" stroke="var(--accent)" strokeWidth="1.4" markerEnd="url(#b)" />
+            <text x="452" y="145" fontSize="9.5" fill="var(--accent)" fontFamily="IBM Plex Mono, monospace">committed to git</text>
+
+            <rect x="512" y="86" width="96" height="40" rx="4" fill="var(--surface)" stroke="var(--rule)" />
+            <text x="560" y="104">Results</text>
+            <text x="560" y="117" fontSize="9.5" opacity=".62">+ 60 images</text>
+
+            <line x1="560" y1="126" x2="560" y2="152" stroke="currentColor" markerEnd="url(#a)" />
+
+            <rect x="504" y="154" width="112" height="40" rx="4" fill="var(--surface)" stroke="var(--rule)" />
+            <text x="560" y="172">This page</text>
+            <text x="560" y="185" fontSize="9.5" opacity=".62">static, no server</text>
+
+            <text x="640" y="108" fontSize="9.5" fill="var(--accent)" fontFamily="IBM Plex Mono, monospace" textAnchor="start">$0</text>
+            <text x="640" y="121" fontSize="9.5" opacity=".6" textAnchor="start">per visit</text>
+          </g>
+        </svg>
+        <figcaption>
+          Nothing inside the grey area runs when you load this page. The model,
+          the scoring and my ratings all happen once on a laptop; only the
+          results cross into the deployment, which is why the site costs nothing
+          to serve and every figure on it can be reproduced.
+        </figcaption>
+      </figure>
+
+      {/* ── 4. How it works, plainly ─────────────────────────────────── */}
+      <h2>How the filters work</h2>
+      <p>
+        Three of the four are arithmetic over pixels. One is a small vision
+        model. <strong>No language model judges anything</strong> — whether an
+        image matches its prompt is measurable, and measuring beats asking.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: ".9rem" }}>
+        {CONFIGS.map((c) => (
+          <div key={c.key}>
+            <h3 style={{ margin: 0, color: c.isControl ? "var(--bad)" : undefined }}>
+              {c.label}
+            </h3>
+            <p style={{ color: "var(--muted)", fontSize: ".95rem" }}>{c.blurb}</p>
           </div>
         ))}
-      </dl>
-      <p className="note">
-        Three of the four are arithmetic over pixels; one is a small CLIP model.
-        No language model judges anything here — whether an image matches its
-        prompt or leaves the button area clear is measurable, and measuring beats
-        asking.
+      </div>
+
+      {/* ── 5. What came out ─────────────────────────────────────────── */}
+      <h2>What came out</h2>
+      <div className="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Filter</th>
+              <th>Rank correlation</th>
+              <th>Top {top_n} rating</th>
+              <th>vs no filter</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...metrics, control].map((row) => {
+              const delta = row.top_n_mean_rating - mean_rating;
+              const isControl = row.metric === control.metric;
+              return (
+                <tr key={row.metric} className={isControl ? "ctrl" : undefined}>
+                  <td>{LABEL[row.metric] ?? row.metric}</td>
+                  <td>{row.spearman.toFixed(2)}</td>
+                  <td>{row.top_n_mean_rating.toFixed(2)}</td>
+                  <td className={delta > 0 ? "pos" : "neg"}>
+                    {delta >= 0 ? "+" : ""}
+                    {delta.toFixed(2)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Five lines of arithmetic beat a 600 MB model</h3>
+      <p>
+        {LABEL[best?.metric ?? ""]} is a standard deviation over a rectangle of
+        pixels. CLIP is a transformer trained on 400 million image-caption
+        pairs. On this set the arithmetic predicted my judgement roughly three
+        times better.
       </p>
 
-      <h2>All {n_images} creatives</h2>
-      <p className="note">
-        Ranked by CLIP adherence. <code>R</code> is my rating, <code>A</code>{" "}
-        adherence, <code>C</code> CTA clarity.
+      <h3>Filtering for distinctiveness actively hurts</h3>
+      <p>
+        The ten creatives furthest from every other creative averaged{" "}
+        <strong>1.70</strong> against a baseline of {mean_rating.toFixed(2)}. In
+        a batch of generations, an outlier is usually a failure rather than an
+        idea.
       </p>
-      <div className="grid">
-        {ranked.map((image) => (
-          <figure className="card" key={image.file} style={{ margin: 0 }}>
-            <img src={`/images/${image.file}`} alt={image.text} loading="lazy" />
-            <figcaption className="meta">
-              R <b>{image.rating ?? "—"}</b> · A <b>{image.adherence.toFixed(2)}</b> · C{" "}
-              <b>{image.cta_clarity.toFixed(2)}</b>
-            </figcaption>
-          </figure>
-        ))}
+
+      <div className="panel lead">
+        <h3 style={{ margin: 0 }}>And then the control beat them both</h3>
+        <p>
+          Button-area clarity came with a tidy rationale: mobile ads put the
+          install button in the bottom centre, so a busy strip there makes a
+          creative unusable. So I ran the identical arithmetic on the{" "}
+          <em>top</em> strip, where there is no button and no story. It scored{" "}
+          <strong>{control.spearman.toFixed(2)}</strong> against{" "}
+          {best?.spearman.toFixed(2)} — better on every measure.
+        </p>
+        <p>
+          The metric was detecting a visually calm image all along. My domain
+          rationale was written after the numbers arrived, and without a control
+          it would have shipped as a finding.
+        </p>
       </div>
+
+      {/* ── 6. Built with ────────────────────────────────────────────── */}
+      <h2>Built with</h2>
+      <div className="chips">
+        <span className="chip"><b>Python</b></span>
+        <span className="chip"><b>PyTorch</b> Apple Silicon / MPS</span>
+        <span className="chip"><b>Diffusers</b> Stable Diffusion Turbo</span>
+        <span className="chip"><b>CLIP</b> image-text embeddings</span>
+        <span className="chip"><b>NumPy</b></span>
+        <span className="chip"><b>Next.js</b> static, no server</span>
+        <span className="chip"><b>pytest</b> · ruff</span>
+      </div>
+      <p style={{ fontSize: ".92rem", color: "var(--muted)" }}>
+        {n_images} creatives generated on-device with open weights, so the whole
+        project cost nothing to run and needs no API key to reproduce.
+      </p>
+
+      {/* ── 7. What this does not prove ──────────────────────────────── */}
+      <h2>What this does not prove</h2>
+      <ul>
+        <li>
+          <strong>One rater.</strong> This measures whether these filters track{" "}
+          <em>my</em> judgement on <em>this</em> brief. A second rater would give
+          an inter-rater agreement figure that this cannot.
+        </li>
+        <li>
+          <strong>Sixty images is a small sample.</strong> At this size a
+          correlation of 0.2 is hard to separate from nothing, so the ordering of
+          the weak filters should not be over-read.
+        </li>
+        <li>
+          <strong>The ratings are skewed</strong> — 26 of 60 scored 1. Much of
+          what the good filters detect may be the difference between broken and
+          coherent rather than between good and better.
+        </li>
+        <li>
+          <strong>The brand palette was never put in the prompt</strong>, so that
+          filter measures whether the colours turned up by chance rather than
+          whether the model followed an instruction.
+        </li>
+      </ul>
+
+      <p className="foot">
+        Code, data and every figure on this page:{" "}
+        <a href="https://github.com/berkaykoklu/creative-eval">
+          github.com/berkaykoklu/creative-eval
+        </a>
+      </p>
     </>
   );
 }
