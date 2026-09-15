@@ -1,5 +1,7 @@
 # creative-eval
 
+[![ci](https://github.com/berkaykoklu/creative-eval/actions/workflows/ci.yml/badge.svg)](https://github.com/berkaykoklu/creative-eval/actions/workflows/ci.yml)
+
 **[Live site →](https://creative-eval.berkaykoklu.com)**
 
 Generating ad creatives is a solved problem: one script, no money, sixty images
