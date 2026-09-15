@@ -5,7 +5,7 @@ import { CONFIGS, type Results } from "@/lib/metrics";
 
 const results = raw as Results;
 const REPO = "https://github.com/berkaykoklu/creative-eval";
-const HOME = "https://berkaykoklu.vercel.app";
+const HOME = "https://berkaykoklu.com";
 const LABEL: Record<string, string> = Object.fromEntries(CONFIGS.map((c) => [c.key, c.label]));
 
 export default function Home() {
@@ -16,7 +16,7 @@ export default function Home() {
     <main className="relative z-10 mx-auto w-full max-w-[72rem] px-6 py-16 sm:py-24">
       <Reveal>
         <a href={HOME} className="font-mono text-[0.76rem] text-low transition-colors hover:text-mid">
-          ← berkaykoklu.vercel.app
+          ← berkaykoklu.com
         </a>
         <h1 className="display mt-6 text-[clamp(2.3rem,6.5vw,4.2rem)]">
           Which AI ad creatives<br />are worth a budget?

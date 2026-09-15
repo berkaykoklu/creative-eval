@@ -6,7 +6,7 @@ const DESCRIPTION =
   "A model generates sixty mobile-game ad creatives in ten minutes for nothing. Choosing between them is the part that costs something. Four automatic filters, sixty images rated blind — and a control that proved the best filter was measuring the wrong thing.";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://creative-eval.vercel.app"),
+  metadataBase: new URL("https://creative-eval.berkaykoklu.com"),
   title: "Which AI ad creatives are worth a budget?",
   description: DESCRIPTION,
   openGraph: { title: "Which AI ad creatives are worth a budget?", description: DESCRIPTION, type: "website", locale: "en" },

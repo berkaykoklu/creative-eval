@@ -1,6 +1,6 @@
 # creative-eval
 
-**[Live site →](https://creative-eval.vercel.app)**
+**[Live site →](https://creative-eval.berkaykoklu.com)**
 
 Generating ad creatives is a solved problem: one script, no money, sixty images
 in ten minutes. **Deciding which ones deserve a media budget is the problem that
